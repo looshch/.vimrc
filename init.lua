@@ -1,9 +1,4 @@
--- known issues: Angular LS,
---               CSS completion,
---               having several LSs working in parallel on same buffer,
---               treesitter glitches sometimes,
---
--- for Neovim v0.5+ only
+-- for Neovim v0.5+
 
 local cmd = vim.cmd
 local set = vim.opt
@@ -12,7 +7,7 @@ local map = vim.api.nvim_set_keymap
 local execute = vim.api.nvim_command
 local callbacks = vim.lsp.callbacks
 
--- auto load plugins manager on Neovim start; ripgrep is required
+-- auto load plugins manager on Neovim start; Yarn and ripgrep is required
 local packer_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
 if fn.empty(fn.glob(packer_path)) > 0 then
   fn.system({ 'git', 'clone', 'https://github.com/wbthomason/packer.nvim', packer_path })
@@ -23,7 +18,10 @@ require'packer'.startup(function()
   -- plugins manager
   use 'wbthomason/packer.nvim'
   -- syntax highlighting
-  use { 'nvim-treesitter/nvim-treesitter', run = ':TSUpdate' }
+  use {
+  	'nvim-treesitter/nvim-treesitter',
+  	run = ':TSUpdate',
+  }
   -- color scheme
   use 'sainnhe/sonokai'
   -- icons
@@ -33,20 +31,13 @@ require'packer'.startup(function()
   -- file search
   use 'junegunn/fzf'
   use 'junegunn/fzf.vim'
-  -- LSP configurator
-  use 'neovim/nvim-lspconfig'
-  -- auto completion
-  use 'hrsh7th/nvim-compe'
-  -- snippets
-  use 'SirVer/ultisnips'
-  use 'honza/vim-snippets'
-  -- auto pairs
+  -- language server
   use {
-    'windwp/nvim-autopairs',
-    config = function()
-      require('nvim-autopairs').setup()
-    end,
+  	'neoclide/coc.nvim',
+  	branch = 'release',
   }
+  -- snippets
+  use 'honza/vim-snippets'
   -- auto change corresponding HTML tag
   use 'AndrewRadev/tagalong.vim'
   -- comment code out
@@ -186,7 +177,7 @@ vim.g.nvim_tree_auto_close = 1
 vim.g.nvim_tree_indent_markers = 1
 -- append slash to folder paths
 vim.g.nvim_tree_add_trailing = 1
--- folders with one folder are grouped
+-- folders with one folder only are grouped
 vim.g.nvim_tree_group_empty = 1
 -- toggle file [b]rowser
 map('n', '<leader>b', ':NvimTreeRefresh<cr> :NvimTreeToggle<cr> :set relativenumber<cr>', { silent = true })
@@ -201,65 +192,39 @@ map('n', '<leader>t', ':Rg<cr>', { silent = true })
 -- file search by [n]ame
 map('n', '<leader>n', ':GFiles<cr>', { silent = true })
 
--- nvim-lspconfig
--- language servers should be installed manually
--- gopls: go get golang.org/x/tools/gopls@latest
--- jsonls, html, cssls: npm i -g vscode-langservers-extracted
--- tsserver: npm i -g typescript-language-server
--- angularls: npm i -g @angular/language-server@[same version as your project]
---            && [in every project] npm i -g @angular/language-service@[same version as your project]
-local nvim_lsp = require'lspconfig'
-local on_attach = function(_, bufnr)
-  local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
-  local opts = { silent = true }
-  -- code [a]ction (imports, infer type, etc.)
-  buf_set_keymap('n', '<leader>a', ':lua vim.lsp.buf.code_action()<cr>', opts)
-  -- show symbol [r]eferences
-  buf_set_keymap('n', '<leader>r', ':lua vim.lsp.buf.references()<cr>', opts)
-  -- jump to [i]mplementation in new tab
-  buf_set_keymap('n', '<leader>i', ':lua vim.lsp.buf.implementation()<cr>', opts)
-  -- jump to [d]efinition in new tab
-  buf_set_keymap('n', '<leader>d', ':lua vim.lsp.buf.definition()<cr>', opts)
-  -- [r]ename symbol
-  buf_set_keymap('n', '<leader>R', ':lua vim.lsp.buf.rename()<cr>', opts)
-end
-local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities.textDocument.completion.completionItem.snippetSupport = true
-local servers = { 'gopls', 'jsonls', 'html', 'cssls' }
-for _, lsp in ipairs(servers) do
-  nvim_lsp[lsp].setup{
-    on_attach = on_attach,
-    capabilites = capabilites,
-  }
-end
-nvim_lsp['tsserver'].setup{
-  filetypes = { 'javascript', 'typescript' },
-  on_attach = on_attach,
-  capabilites = capabilites,
+-- CoC
+vim.g.coc_global_extensions = {
+  'coc-sumneko-lua',
+  'coc-pairs',
+  'coc-json',
+  'coc-sh',
+  'coc-go',
+  'coc-sql',
+  'coc-snippets',
+  'coc-emmet',
+  'coc-html',
+  'coc-htmlhint',
+  'coc-html-css-support',
+  'coc-css',
+  'coc-cssmodules',
+  'coc-svg',
+  'coc-tsserver',
+  'coc-angular',
 }
-nvim_lsp['angularls'].setup{
-  filetypes = { 'html' },
-  on_attach = on_attach,
-  capabilites = capabilites,
-}
-
--- nvim-compe
-set.completeopt = 'menuone,noselect'
--- auto select first entry
-require'compe'.setup{
-  source = {
-    path = true;
-    buffer = true;
-    nvim_lsp = true;
-    ultisnips = true;
-  },
-}
-map('i', '<CR>', 'compe#confirm(luaeval("require \'nvim-autopairs\'.autopairs_cr()"))', { expr = true })
-
--- ultisnips
--- also run `pip3 install neovim`
-vim.g.python3_host_prog = '/usr/local/bin/python3'
-cmd'autocmd Filetype css,scss,sass,less :UltiSnipsAddFiletypes css.scss.sass.less'
+-- trigger autocompletion on Enter
+map('i', '<cr>', 'pumvisible() ? "<C-y>" : "<C-g>u<cr>"', { noremap = true, expr = true })
+-- select first autocomplete entry and format code
+map('i', '<cr>', 'pumvisible() ? coc#_select_confirm() : "<C-g>u<cr><C-r>=coc#on_enter()<cr>"', { silent = true, noremap = true, expr = true })
+-- code [a]ction (imports, infer type, etc.)
+map('n', '<leader>a', '<Plug>(coc-codeaction)', { silent = true })
+-- show symbol [r]eferences
+map('n', '<leader>r', '<Plug>(coc-references)', {})
+-- jump to [i]mplementation in new tab
+map('n', '<leader>i', ':call CocAction(\'jumpImplementation\', \'tab drop\')<cr>', { silent = true })
+-- jump to [d]efinition in new tab
+map('n', '<leader>d', ':call CocAction(\'jumpDefinition\', \'tab drop\')<cr>', { silent = true })
+-- [r]ename symbol
+map('n', '<leader>R', '<Plug>(coc-rename)', {})
 
 -- vim-commentary. Toggle line [c]ommenting
 map('n', '<leader>c', 'gc', {})
